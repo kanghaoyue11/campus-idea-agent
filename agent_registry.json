@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "agents": [
+    {"id":"planner_fast","name":"快速规划 Agent","role":"planner","capabilities":["planning","interview"],"priority":1,"load":0.0,"expertise":0.8,"instruction":"优先给出简洁、可立即执行的验证步骤。"},
+    {"id":"planner_evidence","name":"证据分析规划 Agent","role":"planner","capabilities":["planning","interview","evidence","metrics"],"priority":1,"load":0.2,"expertise":0.9,"instruction":"优先区分已有证据、缺失证据和待验证假设，并给出可观察指标。"},
+    {"id":"solution_basic","name":"方案整理 Agent","role":"solution","capabilities":["structure","risk"],"priority":1,"load":0.0,"expertise":0.8,"instruction":"按要求章节组织完整方案，清楚区分事实与计划。"},
+    {"id":"solution_metrics","name":"指标设计 Agent","role":"solution","capabilities":["structure","risk","metrics","product"],"priority":1,"load":0.2,"expertise":0.9,"instruction":"重点检查指标是否可观察，并把目标值与实测结果分开。"},
+    {"id":"review_structure","name":"结构校验 Agent","role":"reviewer","capabilities":["structure"],"priority":1,"load":0.0,"expertise":0.8,"instruction":"重点核对必需章节和可执行步骤。"},
+    {"id":"review_evidence","name":"证据审查 Agent","role":"reviewer","capabilities":["structure","evidence","metrics"],"priority":1,"load":0.1,"expertise":0.9,"instruction":"重点检查无证据断言、指标依据和证据边界。"},
+    {"id":"reviser","name":"方案修订 Agent","role":"reviser","capabilities":["revision","structure","risk"],"priority":1,"load":0.0,"expertise":0.85,"instruction":"按反馈修复问题并保留原有真实信息，不补造数据。"}
+  ]
+}
