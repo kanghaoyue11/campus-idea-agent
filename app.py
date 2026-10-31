@@ -8,7 +8,7 @@ from core import (APP_NAME, MAX_RETRIES, LLMClient, run_orchestration, to_markdo
 
 st.set_page_config(page_title=APP_NAME, page_icon="🧭", layout="wide")
 st.title("🧭 校园创意验证 Agent")
-st.caption("多 Agent 编排演示：规划 → 方案生成 → 独立验证 → 有上限的 Self-Loop 修订")
+st.caption("多 Agent 编排演示：真实 API 模式下规划与方案并行 → 独立验证 → 有上限的 Self-Loop 修订")
 with st.sidebar:
     st.header("模型设置")
     mode = st.radio("运行方式", ["模拟模式（不调用真实模型）", "真实模型 API"], help="模拟模式的输出来自本地固定逻辑，不代表真实模型能力。")

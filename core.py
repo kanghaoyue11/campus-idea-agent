@@ -2,20 +2,36 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 import time
 import urllib.error
 import urllib.request
-from dataclasses import asdict, dataclass
-from datetime import datetime
 from typing import Any
 
-from scheduler import load_registry, select_agent
+from scheduler import AgentAssignment, load_registry, run_roles_concurrently, select_agent
 
 
 APP_NAME = "校园创意验证 Agent"
 MAX_RETRIES = 2
+# 并行角色的失败重试上限：首次失败后最多再重试 ROLE_MAX_ATTEMPTS-1 次（总尝试不超过 ROLE_MAX_ATTEMPTS 次）。
+ROLE_MAX_ATTEMPTS = 3
 KNOWLEDGE_PATH = Path(__file__).with_name("knowledge_base.json")
+RUNS_DIR = Path(__file__).with_name("runs")
+
+
+@dataclass(frozen=True)
+class OrchestrationInput:
+    """规划与方案角色共享的不可变输入快照。
+
+    两个彼此独立的角色（planner / solution）从同一份冻结输入独立运行，
+    互不读取对方输出，从而可以安全地并行调度，不引入虚假的数据依赖。
+    """
+    problem: str
+    audience: str
+    evidence: str
+    knowledge_context: str
 
 
 def retrieve_knowledge(query: str, limit: int = 3) -> list[dict[str, str]]:
@@ -164,6 +180,34 @@ def parse_json(text: str) -> dict[str, Any]:
     return json.loads(text[start:end + 1])
 
 
+def _planner_call(client: LLMClient, assignment: AgentAssignment, snapshot: OrchestrationInput) -> str:
+    return client.complete(
+        f"你是规划 Agent（当前分派：{assignment.agent_name}）。{assignment.instruction}只输出清晰、可执行的校园需求验证计划，区分已知信息和待验证假设。可以参考提供的本地指南，但不得把指南说成用户证据。",
+        f"本地指南：\n{snapshot.knowledge_context}\n需求：{snapshot.problem}\n目标用户：{snapshot.audience}\n用户提供的证据：{snapshot.evidence or '无'}",
+    )
+
+
+def _solution_call(client: LLMClient, assignment: AgentAssignment, snapshot: OrchestrationInput) -> str:
+    return client.complete(
+        f"你是方案 Agent（当前分派：{assignment.agent_name}）。{assignment.instruction}基于输入写中文项目方案草案。必须包含：一句话介绍、用户痛点与证据、验证计划、最小可行方案、成效指标、风险与边界。不得编造调研数据。",
+        f"本地指南：\n{snapshot.knowledge_context}\n需求：{snapshot.problem}\n目标用户：{snapshot.audience}\n已有证据：{snapshot.evidence or '无；明确写待验证'}",
+    )
+
+
+def _log_role_results(role_results: dict[str, Any], logs: list[RunLog]) -> None:
+    """把 scheduler.run_roles_concurrently 的 RoleResult 转写为运行日志。"""
+    for role, rr in role_results.items():
+        for failure in rr.failures:
+            logs.append(RunLog(f"{role} Agent", "失败", failure, 0))
+        if rr.ok:
+            logs.append(RunLog(f"{role} Agent", "完成",
+                               f"第 {rr.attempts} 次尝试成功", rr.duration_ms))
+        else:
+            logs.append(RunLog(f"{role} Agent", "耗尽",
+                               f"共尝试 {rr.attempts} 次；重试耗尽，返回明确失败状态（安全空值）；最后异常：{rr.error}",
+                               rr.duration_ms))
+
+
 def run_orchestration(problem: str, audience: str, evidence: str, client: LLMClient) -> dict[str, Any]:
     logs: list[RunLog] = []
     started = time.perf_counter()
@@ -189,16 +233,25 @@ def run_orchestration(problem: str, audience: str, evidence: str, client: LLMCli
         logs.append(RunLog("独立验证 Agent", "通过" if review["passed"] else "需修改", review["summary"], 1))
         attempts = 0
     else:
-        plan = client.complete(
-            f"你是规划 Agent（当前分派：{plan_assignment.agent_name}）。{plan_assignment.instruction}只输出清晰、可执行的校园需求验证计划，区分已知信息和待验证假设。可以参考提供的本地指南，但不得把指南说成用户证据。",
-            f"本地指南：\n{knowledge_context}\n需求：{problem}\n目标用户：{audience}\n用户提供的证据：{evidence or '无'}",
+        # 规划与方案两个角色彼此独立，共享同一份不可变输入快照，可安全并行。
+        snapshot = OrchestrationInput(problem=problem, audience=audience, evidence=evidence,
+                                      knowledge_context=knowledge_context)
+        logs.append(RunLog("并行调度", "开始", "规划 Agent 与方案 Agent 基于同一输入快照并行运行", 0))
+        role_results = run_roles_concurrently(
+            roles={
+                "planner": lambda: _planner_call(client, plan_assignment, snapshot),
+                "solution": lambda: _solution_call(client, solution_assignment, snapshot),
+            },
+            fallbacks={
+                "planner": "（规划 Agent 生成失败，未产生稳定输出。）",
+                "solution": "（方案 Agent 生成失败，未产生稳定输出。）",
+            },
+            max_retries=ROLE_MAX_ATTEMPTS - 1,
         )
-        logs.append(RunLog("规划 Agent", "完成", "输出验证步骤与假设", 0))
-        solution = client.complete(
-            f"你是方案 Agent（当前分派：{solution_assignment.agent_name}）。{solution_assignment.instruction}基于输入写中文项目方案草案。必须包含：一句话介绍、用户痛点与证据、验证计划、最小可行方案、成效指标、风险与边界。不得编造调研数据。",
-            f"本地指南：\n{knowledge_context}\n需求：{problem}\n目标用户：{audience}\n已有证据：{evidence or '无；明确写待验证'}\n验证计划：\n{plan}",
-        )
-        logs.append(RunLog("方案 Agent", "完成", "生成方案初稿", 0))
+        _log_role_results(role_results, logs)
+        plan = role_results["planner"].value
+        solution = role_results["solution"].value
+        logs.append(RunLog("并行调度", "结束", "两个独立角色已汇合，进入依赖顺序阶段", 0))
         review = {}
         attempts = 0
         while attempts <= MAX_RETRIES:
@@ -218,12 +271,106 @@ def run_orchestration(problem: str, audience: str, evidence: str, client: LLMCli
             )
             logs.append(RunLog("Self-Loop 修订", f"第 {attempts} 次", "根据独立验证结果修订方案", 0))
     logs.append(RunLog("流程结束", "完成", f"总耗时约 {int((time.perf_counter()-started)*1000)} ms；最大返工次数 {MAX_RETRIES}", 0))
-    return {"plan": plan, "solution": solution, "review": review, "attempts": attempts,
+    task_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
+    result = {"plan": plan, "solution": solution, "review": review, "attempts": attempts,
             "logs": [asdict(log) for log in logs], "mode": client.mode,
             "knowledge_sources": [{"id": r["id"], "title": r["title"]} for r in knowledge],
             "scheduled_agents": [{"id": a.agent_id, "name": a.agent_name, "role": a.role,
                                   "version": a.version, "reason": a.reason} for a in assignments],
             "created_at": datetime.now().astimezone().isoformat(timespec="seconds")}
+    _persist_trace_safe(result, logs, task_id)
+    return result
+
+
+def _persist_trace_safe(result: dict[str, Any], logs: list[RunLog], task_id: str) -> Path | None:
+    """轨迹写入的兜底入口：任何异常都不影响主流程。"""
+    try:
+        return _persist_trace(result, logs, task_id)
+    except Exception:  # noqa: BLE001 - 轨迹写入失败不得影响主流程
+        return None
+
+
+def _persist_trace(result: dict[str, Any], logs: list[RunLog], task_id: str) -> Path | None:
+    """把本次编排的结构化执行轨迹写入 runs/<timestamp>.json。
+
+    从运行日志中提取每个角色的开始/结束时间、耗时、状态、失败原因与重试次数。
+    任何写入异常都被吞掉并返回 None，绝不影响主流程。
+    """
+    try:
+        started_iso = result.get("created_at")
+        trace = {
+            "task_id": task_id,
+            "mode": result.get("mode"),
+            "created_at": started_iso,
+            "roles": _trace_roles(logs, started_iso),
+        }
+        RUNS_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
+        path = RUNS_DIR / f"{stamp}.json"
+        path.write_text(json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
+        return path
+    except Exception:  # noqa: BLE001 - 轨迹写入失败不得影响主流程
+        return None
+
+
+def _trace_roles(logs: list[RunLog], started_iso: str | None) -> list[dict[str, Any]]:
+    """从 RunLog 序列重建每个角色的时间线条目。"""
+    role_steps = ("规划 Agent", "方案 Agent", "planner Agent", "solution Agent",
+                  "独立验证 Agent", "Self-Loop 修订")
+    roles: list[dict[str, Any]] = []
+    for log in logs:
+        if log.step not in role_steps:
+            continue
+        status = _trace_status(log)
+        roles.append({
+            "role": log.step,
+            "status": status,
+            "duration_ms": log.duration_ms,
+            "detail": log.detail,
+            "retries": _retries_from_log(log, status),
+            "error": _error_from_log(log, status),
+        })
+    return roles
+
+
+def _trace_status(log: RunLog) -> str:
+    status = log.status
+    if status in ("完成", "通过"):
+        return "success"
+    if status == "需修改":
+        return "retried"
+    if status == "失败":
+        return "failed"
+    if status == "耗尽":
+        return "fallback"
+    if "第" in status:  # Self-Loop 修订：status 形如 "第 1 次"
+        return "retried"
+    return "success"
+
+
+def _retries_from_log(log: RunLog, status: str) -> int:
+    if status == "retried":
+        return 1
+    detail = log.detail
+    if "共尝试 " in detail and " 次" in detail:
+        try:
+            total_attempts = int(detail.split("共尝试 ", 1)[1].split(" 次", 1)[0])
+            return max(0, total_attempts - 1)
+        except ValueError:
+            return 0
+    if detail.startswith("第 "):
+        try:
+            attempt = int(detail[2:].split("/", 1)[0].split(" 次", 1)[0])
+            return max(0, attempt - 1)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _error_from_log(log: RunLog, status: str) -> str | None:
+    if status in ("failed", "fallback"):
+        return log.detail
+    return None
 
 
 def to_markdown(result: dict[str, Any]) -> str:
