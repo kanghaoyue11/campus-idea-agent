@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -9,6 +10,11 @@ import time
 import urllib.error
 import urllib.request
 from typing import Any
+
+try:
+    import certifi
+except ImportError:  # pragma: no cover - 仅在缺少可选依赖时回退
+    certifi = None
 
 from scheduler import AgentAssignment, load_registry, run_roles_concurrently, select_agent
 
@@ -19,6 +25,12 @@ MAX_RETRIES = 2
 ROLE_MAX_ATTEMPTS = 3
 KNOWLEDGE_PATH = Path(__file__).with_name("knowledge_base.json")
 RUNS_DIR = Path(__file__).with_name("runs")
+
+# macOS 的 python.org 安装包可能没有为 OpenSSL 安装系统 CA 包。
+# 优先使用 certifi 证书，保证 HTTPS 模型接口可用；缺失时回退到系统默认。
+_SSL_CONTEXT = ssl.create_default_context(
+    cafile=certifi.where() if certifi is not None else None
+)
 
 
 @dataclass(frozen=True)
@@ -90,7 +102,7 @@ class LLMClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=90) as response:
+            with urllib.request.urlopen(request, timeout=90, context=_SSL_CONTEXT) as response:
                 data = json.loads(response.read().decode("utf-8"))
             return data["choices"][0]["message"]["content"]
         except urllib.error.HTTPError as exc:

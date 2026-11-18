@@ -37,6 +37,9 @@ def required_capabilities(role: str, context: str, has_evidence: bool = False) -
         "solution": {"structure"},
         "reviewer": {"structure"},
         "reviser": {"revision"},
+        # 招聘筛选语义角色（与校园 Agent 角色并列，不影响原角色）。
+        "extractor": {"structure"},
+        "screening_reviewer": {"structure"},
     }.get(role)
     if required is None:
         raise ValueError(f"未知任务角色：{role}")
