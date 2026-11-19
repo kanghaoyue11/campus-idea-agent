@@ -1,4 +1,4 @@
-"""招聘筛选网页端（独立入口，不影响原校园创意验证 Agent 页面）。
+"""AI 招聘简历筛选网页端。
 
 启动方式：streamlit run screening_app.py
 

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lumen — Thoughtful AI for deep work</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #F5F4ED;
+    --ink: #141413;
+    --ink-soft: rgba(20,20,19,0.62);
+    --terracotta: #D97757;
+    --line: rgba(20,20,19,0.10);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  * { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 300;
+  }
+  .font-serif-display { font-family: 'Instrument Serif', 'Lora', serif; }
+
+  /* 纸张噪点质感 */
+  .paper-noise {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* 光标闪烁 */
+  @keyframes caret-blink { 0%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  .caret {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.15em;
+    background: var(--terracotta);
+    vertical-align: -0.2em;
+    margin-left: 1px;
+    animation: caret-blink 1.1s steps(1) infinite;
+  }
+
+  /* 流式淡入 */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .reveal { animation: rise-in 0.9s var(--ease) both; }
+  .reveal-delay-1 { animation-delay: 0.12s; }
+  .reveal-delay-2 { animation-delay: 0.26s; }
+  .reveal-delay-3 { animation-delay: 0.40s; }
+
+  /* 星点缓缓闪烁 */
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.25; }
+    50% { opacity: 0.9; }
+  }
+  .star-dot { animation: twinkle 4s ease-in-out infinite; }
+
+  /* 按钮微位移 */
+  .btn-hover { transition: all 0.3s var(--ease); }
+  .btn-hover:hover { transform: translateY(-1px); }
+
+  /* 极细 0.5px 分割线 */
+  .hairline { height: 0.5px; background: var(--line); }
+
+  /* 输入框 */
+  .prompt-box {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(20,20,19,0.10);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .prompt-box:focus-within {
+    border-color: rgba(217,119,87,0.35);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.04), 0 0 0 3px rgba(217,119,87,0.06);
+  }
+</style>
+</head>
+<body class="overflow-x-hidden">
+
+<!-- 纸张噪点 -->
+<div class="paper-noise"></div>
+
+<!-- ===================== 顶部导航 ===================== -->
+<header class="fixed top-0 left-0 right-0 z-50 bg-[#F5F4ED]/70 backdrop-blur-xl">
+  <div class="hairline"></div>
+  <nav class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <!-- Logo：不对称星号 Asterisk -->
+    <a href="#" class="flex items-center gap-2.5 group">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" class="text-[#141413] transition-transform duration-500 group-hover:rotate-90">
+        <path d="M12 2.5 C12.4 7 10.5 9.5 7 11 C10.5 12.5 12.4 15 12 21.5 C11.6 15 13.5 12.5 17 11 C13.5 9.5 11.6 7 12 2.5 Z"
+              fill="currentColor"/>
+      </svg>
+      <span class="font-serif-display text-xl tracking-tight leading-none pt-0.5">Lumen</span>
+    </a>
+    <!-- 右侧链接 -->
+    <div class="flex items-center gap-8">
+      <div class="hidden md:flex items-center gap-8 text-[13px] text-[#141413]/60 font-normal">
+        <a href="#features" class="hover:text-[#141413] transition-colors duration-300">产品</a>
+        <a href="#method" class="hover:text-[#141413] transition-colors duration-300">理念</a>
+        <a href="#quote" class="hover:text-[#141413] transition-colors duration-300">关于</a>
+      </div>
+      <a href="#" class="btn-hover inline-flex items-center px-4 py-1.5 rounded-md border border-[#D97757] text-[#D97757] text-[13px] font-normal hover:bg-[#D97757] hover:text-[#F5F4ED]">
+        开始对话
+      </a>
+    </div>
+  </nav>
+  <div class="hairline"></div>
+</header>
+
+<!-- ===================== Hero ===================== -->
+<section class="pt-40 pb-28 px-6">
+  <div class="max-w-4xl mx-auto text-center">
+    <p class="reveal text-[11px] tracking-[0.3em] uppercase text-[#141413]/45 mb-8">Thoughtful AI</p>
+    <h1 class="reveal reveal-delay-1 font-serif-display text-6xl md:text-7xl tracking-tighter leading-[0.95] text-[#141413]">
+      Thoughtful AI<br class="hidden md:block" />
+      for <em class="italic text-[#D97757]">deep work</em>
+    </h1>
+    <p class="reveal reveal-delay-2 mt-8 text-[15px] leading-relaxed text-[#141413]/55 max-w-xl mx-auto font-light">
+      一个为深度思考而生的 AI 伙伴。它不喧哗，不急于给出答案，<br class="hidden md:block" />
+      只在恰好的时刻，递给你一句有份量的话。
+    </p>
+
+    <!-- Claude 风格输入框 -->
+    <div class="reveal reveal-delay-3 mt-12 max-w-2xl mx-auto">
+      <div class="prompt-box rounded-2xl px-5 py-4 flex items-center gap-3 text-left">
+        <span class="text-[#141413]/50 font-light text-[15px] whitespace-nowrap">
+          问点什么<span class="caret"></span>
+        </span>
+        <span class="flex-1"></span>
+        <button class="btn-hover flex items-center justify-center w-8 h-8 rounded-full bg-[#141413] text-[#F5F4ED]" aria-label="发送">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path d="M12 19V5M12 5L6 11M12 5L18 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <p class="mt-4 text-[11px] text-[#141413]/35 font-light">Lumen 会认真读，慢慢想，再回答。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 特性 Bento Grid ===================== -->
+<section id="features" class="px-6 pb-32">
+  <div class="max-w-6xl mx-auto">
+    <div class="mb-16 max-w-xl">
+      <p class="text-[11px] tracking-[0.3em] uppercase text-[#141413]/45 mb-5">Craft</p>
+      <h2 class="font-serif-display text-4xl md:text-5xl tracking-tight leading-tight text-[#141413]">
+        克制，是一种力量。
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+      <!-- 大卡片：占 7 列 -->
+      <div class="md:col-span-7 bg-white/60 border border-[#141413]/10 rounded-2xl p-10 flex flex-col justify-between min-h-[340px] shadow-[0_20px_50px_rgba(0,0,0,0.03)]">
+        <div>
+          <svg class="mb-8 text-[#141413]" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M4 6h16M4 12h10M4 18h16" stroke-linecap="round"/>
+          </svg>
+          <h3 class="font-serif-display text-2xl tracking-tight mb-3">慢慢想，再回答</h3>
+          <p class="text-[14px] text-[#141413]/55 leading-relaxed font-light max-w-sm">
+            不追求秒回，而是先梳理脉络、权衡轻重。它在沉默里完成推理，把结论压成一句值得你停下片刻的话。
+          </p>
+        </div>
+        <div class="mt-10 pt-6 border-t border-[#141413]/10">
+          <p class="text-[12px] text-[#141413]/40 font-light tracking-wide">Deep reasoning · Latency, but deliberately</p>
+        </div>
+      </div>
+
+      <!-- 右列两张小卡 -->
+      <div class="md:col-span-5 flex flex-col gap-5">
+        <div class="flex-1 bg-[#141413] text-[#F5F4ED] rounded-2xl p-8 flex flex-col justify-between min-h-[160px] shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
+          <svg class="mb-5 text-[#D97757]" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <circle cx="12" cy="12" r="8"/>
+            <path d="M12 8v4l3 2" stroke-linecap="round"/>
+          </svg>
+          <div>
+            <h3 class="font-serif-display text-xl tracking-tight mb-2">不被时间催促</h3>
+            <p class="text-[13px] text-[#F5F4ED]/60 font-light leading-relaxed">它尊重思考的节奏，也尊重你的。</p>
+          </div>
+        </div>
+        <div class="flex-1 bg-white/60 border border-[#141413]/10 rounded-2xl p-8 flex flex-col justify-between min-h-[160px] shadow-[0_20px_50px_rgba(0,0,0,0.03)]">
+          <svg class="mb-5 text-[#141413]" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3z" stroke-linejoin="round"/>
+          </svg>
+          <div>
+            <h3 class="font-serif-display text-xl tracking-tight mb-2">为深度工作而生</h3>
+            <p class="text-[13px] text-[#141413]/55 font-light leading-relaxed">写作、研究、决策，一处安放。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 理念 / 非对称引文 ===================== -->
+<section id="method" class="px-6 pb-32">
+  <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
+    <!-- 左侧大面积留白 + 引文 -->
+    <div class="md:col-span-5">
+      <p class="text-[11px] tracking-[0.3em] uppercase text-[#141413]/45 mb-8">Belief</p>
+      <blockquote class="font-serif-display text-3xl md:text-4xl tracking-tight leading-snug text-[#141413]">
+        “好的工具，<br/>应当让你<span class="italic text-[#D97757]">更接近自己</span>，<br/>而非更依赖它。”
+      </blockquote>
+      <p class="mt-8 text-[14px] text-[#141413]/50 font-light leading-relaxed max-w-sm">
+        我们相信 AI 的终点不是替代思考，而是腾出你思考的空间。少一点噪音，多一点留白。
+      </p>
+    </div>
+    <!-- 右侧交互演示卡片 -->
+    <div class="md:col-span-7">
+      <div class="bg-white/70 border border-[#141413]/10 rounded-2xl p-8 shadow-[0_20px_50px_rgba(0,0,0,0.03)]">
+        <div class="flex items-center gap-2 mb-6">
+          <span class="w-2.5 h-2.5 rounded-full bg-[#141413]/15"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-[#141413]/15"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-[#D97757]/60"></span>
+          <span class="ml-3 text-[12px] text-[#141413]/40 font-light">一段对话</span>
+        </div>
+        <div class="space-y-5">
+          <div class="flex justify-end">
+            <div class="max-w-[80%] bg-[#141413] text-[#F5F4ED] rounded-2xl rounded-br-md px-5 py-3 text-[14px] font-light leading-relaxed">
+              我想写一篇关于“慢”的文章，但不知从何下笔。
+            </div>
+          </div>
+          <div class="flex justify-start">
+            <div class="max-w-[85%] bg-[#F5F4ED] border border-[#141413]/8 rounded-2xl rounded-bl-md px-5 py-3 text-[14px] font-light leading-relaxed text-[#141413]/80">
+              或许可以先不写。<br/>先问自己：你最近一次真正“慢下来”，是什么时候？<span class="caret"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 星空彩蛋 + Footer ===================== -->
+<footer id="quote" class="relative px-6 pt-20 pb-14 overflow-hidden">
+  <!-- 星图连线背景 -->
+  <svg class="absolute inset-0 w-full h-full opacity-60 pointer-events-none" viewBox="0 0 1200 400" preserveAspectRatio="xMidYMid slice" fill="none">
+    <g stroke="#141413" stroke-opacity="0.10" stroke-width="0.6">
+      <path d="M120 320 L260 180 L420 250 L580 120 L760 210 L940 140 L1100 260"/>
+      <path d="M260 180 L330 300"/>
+      <path d="M580 120 L620 260"/>
+      <path d="M760 210 L800 90"/>
+    </g>
+    <g fill="#141413">
+      <circle cx="120" cy="320" r="1.6" class="star-dot" style="animation-delay:0s"/>
+      <circle cx="260" cy="180" r="2.2" class="star-dot" style="animation-delay:0.6s"/>
+      <circle cx="330" cy="300" r="1.2" class="star-dot" style="animation-delay:1.2s"/>
+      <circle cx="420" cy="250" r="1.6" class="star-dot" style="animation-delay:0.3s"/>
+      <circle cx="580" cy="120" r="2.4" fill="#D97757" class="star-dot" style="animation-delay:0.9s"/>
+      <circle cx="620" cy="260" r="1.3" class="star-dot" style="animation-delay:1.5s"/>
+      <circle cx="760" cy="210" r="1.7" class="star-dot" style="animation-delay:0.4s"/>
+      <circle cx="800" cy="90" r="1.4" class="star-dot" style="animation-delay:1.1s"/>
+      <circle cx="940" cy="140" r="1.5" class="star-dot" style="animation-delay:0.2s"/>
+      <circle cx="1100" cy="260" r="1.8" class="star-dot" style="animation-delay:0.8s"/>
+    </g>
+  </svg>
+
+  <div class="relative max-w-6xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-10 pb-14">
+      <div class="md:col-span-5">
+        <div class="flex items-center gap-2.5 mb-6">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2.5 C12.4 7 10.5 9.5 7 11 C10.5 12.5 12.4 15 12 21.5 C11.6 15 13.5 12.5 17 11 C13.5 9.5 11.6 7 12 2.5 Z" fill="#141413"/>
+          </svg>
+          <span class="font-serif-display text-xl tracking-tight leading-none pt-0.5">Lumen</span>
+        </div>
+        <p class="text-[13px] text-[#141413]/50 font-light leading-relaxed max-w-xs">
+          为深度工作而生的 AI。像一盏夜里点起的灯，不喧哗，只是安静地照着你写下去。
+        </p>
+      </div>
+      <div class="md:col-span-3">
+        <p class="text-[11px] tracking-[0.2em] uppercase text-[#141413]/40 mb-4">产品</p>
+        <ul class="space-y-2.5 text-[13px] text-[#141413]/55 font-light">
+          <li><a href="#features" class="hover:text-[#141413] transition-colors">特性</a></li>
+          <li><a href="#method" class="hover:text-[#141413] transition-colors">理念</a></li>
+          <li><a href="#" class="hover:text-[#141413] transition-colors">更新日志</a></li>
+        </ul>
+      </div>
+      <div class="md:col-span-3">
+        <p class="text-[11px] tracking-[0.2em] uppercase text-[#141413]/40 mb-4">关于</p>
+        <ul class="space-y-2.5 text-[13px] text-[#141413]/55 font-light">
+          <li><a href="#" class="hover:text-[#141413] transition-colors">我们</a></li>
+          <li><a href="#" class="hover:text-[#141413] transition-colors">联系</a></li>
+          <li><a href="#" class="hover:text-[#141413] transition-colors">隐私</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hairline mb-6"></div>
+    <div class="flex flex-col md:flex-row items-center justify-between gap-3 text-[12px] text-[#141413]/40 font-light">
+      <span>© 2026 Lumen. All rights reserved.</span>
+      <span>Named after the light we carry into the dark. ✦</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

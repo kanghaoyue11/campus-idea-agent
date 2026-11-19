@@ -53,7 +53,7 @@ def render_table(trace: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     trace = latest_trace()
     if trace is None:
-        print("runs/ 下没有可用轨迹。请先运行一次 app.py。")
+        print("runs/ 下没有可用轨迹。请先运行一次 screening_app.py。")
         return 1
     print(render_table(trace))
     return 0
